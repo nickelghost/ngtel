@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
 
 	texporter "github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace"
 	"go.opentelemetry.io/contrib/detectors/gcp"
@@ -20,13 +19,15 @@ import (
 
 // GetCloudTracer gives us a fully set up tracer for usage in Google Cloud.
 // It also gives us a dummy tracer in case of the logging not being enabled.
-func GetCloudTracer(ctx context.Context, enabled bool, serviceName string) (trace.Tracer, func(), error) {
+func GetCloudTracer(
+	ctx context.Context, enabled bool, gcpProject string, serviceName string,
+) (trace.Tracer, func(), error) {
 	if !enabled {
 		return noop.NewTracerProvider().Tracer("main"), func() {}, nil
 	}
 
 	exporter, err := texporter.New(
-		texporter.WithProjectID(os.Getenv("CLOUDSDK_CORE_PROJECT")),
+		texporter.WithProjectID(gcpProject),
 		texporter.WithTraceClientOptions([]option.ClientOption{option.WithTelemetryDisabled()}),
 	)
 	if err != nil {
@@ -66,11 +67,7 @@ func GetCloudTracer(ctx context.Context, enabled bool, serviceName string) (trac
 func GetCloudTracePath(ctx context.Context) string {
 	sc := trace.SpanContextFromContext(ctx)
 	if sc.HasTraceID() {
-		return fmt.Sprintf(
-			"projects/%s/traces/%s",
-			os.Getenv("CLOUDSDK_CORE_PROJECT"),
-			sc.TraceID().String(),
-		)
+		return fmt.Sprintf("projects/%s/traces/%s", GetGCPProject(ctx), sc.TraceID().String())
 	}
 
 	return ""

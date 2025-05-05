@@ -1,3 +1,4 @@
+// Package ngtel is a small personal library of telemetry helpers
 package ngtel
 
 import (
