@@ -17,10 +17,10 @@ import (
 	"google.golang.org/api/option"
 )
 
-// GetCloudTracer gives us a fully set up tracer for usage in Google Cloud.
+// CreateCloudTracer gives us a fully set up tracer for usage in Google Cloud.
 // It also gives us a dummy tracer in case of the logging not being enabled.
 // The shutdown function should be called when the application is shutting down to ensure all traces are sent.
-func GetCloudTracer(
+func CreateCloudTracer(
 	ctx context.Context, enabled bool, gcpProject string, serviceName string,
 ) (trace.Tracer, func(), error) {
 	if !enabled {
