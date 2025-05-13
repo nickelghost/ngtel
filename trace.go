@@ -19,6 +19,7 @@ import (
 
 // GetCloudTracer gives us a fully set up tracer for usage in Google Cloud.
 // It also gives us a dummy tracer in case of the logging not being enabled.
+// The shutdown function should be called when the application is shutting down to ensure all traces are sent.
 func GetCloudTracer(
 	ctx context.Context, enabled bool, gcpProject string, serviceName string,
 ) (trace.Tracer, func(), error) {
@@ -64,6 +65,7 @@ func GetCloudTracer(
 }
 
 // GetCloudTracePath gives us the path identifier of our current trace, enabling us to connect it in logs for example.
+// It returns an empty string if the trace ID is not set.
 func GetCloudTracePath(ctx context.Context) string {
 	sc := trace.SpanContextFromContext(ctx)
 	if sc.HasTraceID() {

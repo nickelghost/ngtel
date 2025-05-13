@@ -27,6 +27,7 @@ func GetLogLevel(level string) slog.Level {
 }
 
 // SetUpLogger sets the default logger as that of the chosen format.
+// It supports JSON, Google Cloud, and Text formats.
 func SetUpLogger(w io.Writer, format string, lvl slog.Level) {
 	opts := &slog.HandlerOptions{Level: lvl, AddSource: true}
 
