@@ -9,3 +9,8 @@ linters:
     - godox
     - ireturn
     - varnamelen
+  settings:
+    revive:
+      rules:
+        - name: package-comments
+          disabled: true
