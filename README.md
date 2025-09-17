@@ -1,3 +1,3 @@
 # ngtel
 
-Small Go library for different telemetry functionalities.
+Common Go telemetry helpers
