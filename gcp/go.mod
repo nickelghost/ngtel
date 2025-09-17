@@ -1,6 +1,6 @@
 module github.com/nickelghost/ngtel/gcp
 
-go 1.24.2
+go 1.24
 
 require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/exporter/trace v1.29.0
