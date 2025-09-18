@@ -21,8 +21,8 @@ func CreateTracer(
 	ctx context.Context,
 	enabled bool,
 	serviceName string,
-	resOpts []resource.Option,
 	tpOpts []sdktrace.TracerProviderOption,
+	resOpts []resource.Option,
 ) (trace.Tracer, func(), error) {
 	if !enabled {
 		return noop.NewTracerProvider().Tracer("main"), func() {}, nil
