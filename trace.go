@@ -4,48 +4,28 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
+	"go.opentelemetry.io/contrib/exporters/autoexport"
+	"go.opentelemetry.io/contrib/propagators/autoprop"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
+	"golang.org/x/oauth2/google"
 )
 
-// CreateTracer gives us a tracer without an exporter.
-// It also gives us a dummy tracer in case of the logging not being enabled.
+// ConfigureTracing gives us tracer in automatic mode.
 // The shutdown function should be called when the application is shutting down to ensure all traces are sent.
-func CreateTracer(
-	ctx context.Context,
-	enabled bool,
-	serviceName string,
-	tpOpts []sdktrace.TracerProviderOption,
-	resOpts []resource.Option,
-) (trace.Tracer, func(), error) {
-	if !enabled {
-		return noop.NewTracerProvider().Tracer("main"), func() {}, nil
-	}
+func ConfigureTracing(ctx context.Context) (func(), error) {
+	otel.SetTextMapPropagator(autoprop.NewTextMapPropagator())
 
-	res, err := resource.New(ctx, append(
-		resOpts,
-		resource.WithTelemetrySDK(),
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String(serviceName),
-		),
-	)...)
+	texporter, err := autoexport.NewSpanExporter(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create resource: %w", err)
+		return nil, err
 	}
 
-	tp := sdktrace.NewTracerProvider(append(
-		tpOpts,
-		sdktrace.WithResource(res),
-	)...)
+	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(texporter))
 
-	otel.SetTextMapPropagator(
-		propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
 	otel.SetTracerProvider(tp)
 
 	shutdown := func() {
@@ -54,5 +34,25 @@ func CreateTracer(
 		}
 	}
 
-	return tp.Tracer("main"), shutdown, nil
+	return shutdown, nil
+}
+
+// GetGCPTracePath gives us the path identifier of our current trace, enabling us to connect it in logs for example.
+// It returns an empty string if the trace ID isn't valid or Google Cloud project ID could not be found.
+func GetGCPTracePath(ctx context.Context) string {
+	sc := trace.SpanContextFromContext(ctx)
+	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
+
+	if projectID == "" {
+		creds, _ := google.FindDefaultCredentials(ctx)
+		projectID = creds.ProjectID
+	}
+
+	if projectID == "" || !sc.TraceID().IsValid() {
+		return ""
+	}
+
+	tracePath := fmt.Sprintf("projects/%s/traces/%s", projectID, sc.TraceID())
+
+	return tracePath
 }
