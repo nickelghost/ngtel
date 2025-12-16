@@ -3,39 +3,14 @@ package ngtel
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
+	"strconv"
+	"strings"
 
-	"go.opentelemetry.io/contrib/exporters/autoexport"
-	"go.opentelemetry.io/contrib/propagators/autoprop"
-	"go.opentelemetry.io/otel"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2/google"
 )
-
-// ConfigureTracing gives us tracer in automatic mode.
-// The shutdown function should be called when the application is shutting down to ensure all traces are sent.
-func ConfigureTracing(ctx context.Context) (func(), error) {
-	otel.SetTextMapPropagator(autoprop.NewTextMapPropagator())
-
-	texporter, err := autoexport.NewSpanExporter(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	tp := sdktrace.NewTracerProvider(sdktrace.WithBatcher(texporter))
-
-	otel.SetTracerProvider(tp)
-
-	shutdown := func() {
-		if err := tp.Shutdown(ctx); err != nil {
-			slog.Error("failed to shut down tracer provider", "err", err)
-		}
-	}
-
-	return shutdown, nil
-}
 
 // GetGCPTracePath gives us the path identifier of our current trace, enabling us to connect it in logs for example.
 // It returns an empty string if the trace ID isn't valid or Google Cloud project ID could not be found.
@@ -55,4 +30,30 @@ func GetGCPTracePath(ctx context.Context) string {
 	tracePath := fmt.Sprintf("projects/%s/traces/%s", projectID, sc.TraceID())
 
 	return tracePath
+}
+
+func getTracesSampler() sdktrace.Sampler {
+	samplerName := os.Getenv("OTEL_TRACES_SAMPLER")
+	ratio := 1.0
+
+	if arg := os.Getenv("OTEL_TRACES_SAMPLER_ARG"); arg != "" {
+		if r, err := strconv.ParseFloat(arg, 64); err == nil {
+			ratio = r
+		}
+	}
+
+	switch strings.ToLower(samplerName) {
+	case "always_on":
+		return sdktrace.AlwaysSample()
+	case "always_off":
+		return sdktrace.NeverSample()
+	case "traceidratio":
+		return sdktrace.TraceIDRatioBased(ratio)
+	case "parentbased_always_off":
+		return sdktrace.ParentBased(sdktrace.NeverSample())
+	case "parentbased_traceidratio":
+		return sdktrace.ParentBased(sdktrace.TraceIDRatioBased(ratio))
+	default:
+		return sdktrace.ParentBased(sdktrace.AlwaysSample())
+	}
 }
