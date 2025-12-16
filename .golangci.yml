@@ -7,8 +7,10 @@ linters:
     - exhaustruct
     - gochecknoglobals
     - godox
+    - noinlineerr
     - ireturn
     - varnamelen
+    - wsl
   settings:
     revive:
       rules:
