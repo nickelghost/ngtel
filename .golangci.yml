@@ -6,7 +6,6 @@ linters:
     - depguard
     - exhaustruct
     - gochecknoglobals
-    - godox
     - noinlineerr
     - ireturn
     - varnamelen
