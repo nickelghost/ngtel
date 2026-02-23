@@ -1,6 +1,7 @@
 package ngtel_test
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -9,65 +10,88 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-func TestGetGCPTracePath(t *testing.T) {
-	testData := []struct {
+func TestGetGCPTracePath(t *testing.T) { //nolint:paralleltest
+	tests := []struct {
+		name      string
 		traceID   string
 		projectID string
-		result    string
+		want      string
 	}{
 		{
+			name:      "example 1",
 			traceID:   "0123456789abcdef0123456789abcdef",
 			projectID: "testing-project",
-			result:    "projects/testing-project/traces/0123456789abcdef0123456789abcdef",
+			want:      "projects/testing-project/traces/0123456789abcdef0123456789abcdef",
 		},
 		{
+			name:      "example 2",
 			traceID:   "12312312312312312312312312312300",
 			projectID: "my-project-123asd",
-			result:    "projects/my-project-123asd/traces/12312312312312312312312312312300",
+			want:      "projects/my-project-123asd/traces/12312312312312312312312312312300",
 		},
 	}
 
-	t.Run("project id from env", func(t *testing.T) {
-		for _, td := range testData {
-			ctx := t.Context()
-			traceID, _ := trace.TraceIDFromHex(td.traceID)
-			spanID, _ := trace.SpanIDFromHex("0123456789abcdef")
-			sc := trace.NewSpanContext(trace.SpanContextConfig{
-				TraceID: traceID,
-				SpanID:  spanID,
-			})
-			ctx = trace.ContextWithSpanContext(ctx, sc)
+	for _, tt := range tests { //nolint:paralleltest
+		t.Run(tt.name, func(t *testing.T) {
+			ngtel.SetProjectID(tt.projectID)
 
-			t.Setenv("GOOGLE_CLOUD_PROJECT", td.projectID)
+			ctx := ctxWithTrace(t, tt.traceID)
 
-			tp := ngtel.GetGCPTracePath(ctx)
-
-			if tp != td.result {
-				t.Errorf("wrong trace path: %s\ninstead of: %s", tp, td.result)
+			if got := ngtel.GetGCPTracePath(ctx); got != tt.want {
+				t.Errorf(`got "%v" wanted "%v"`, got, tt.want)
 			}
-		}
-	})
-
-	t.Run("project id from credentials", func(t *testing.T) {
-		_, filename, _, _ := runtime.Caller(0)
-		t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Dir(filename)+"/test/credentials.json")
-		t.Setenv("GOOGLE_CLOUD_PROJECT", "")
-
-		ctx := t.Context()
-		traceID, _ := trace.TraceIDFromHex(testData[0].traceID)
-		spanID, _ := trace.SpanIDFromHex("0123456789abcdef")
-		sc := trace.NewSpanContext(trace.SpanContextConfig{
-			TraceID: traceID,
-			SpanID:  spanID,
 		})
-		ctx = trace.ContextWithSpanContext(ctx, sc)
+	}
+}
 
-		tp := ngtel.GetGCPTracePath(ctx)
+func TestGetGCPTracePath_CredentialsDetection(t *testing.T) {
+	ngtel.SetProjectID("")
 
-		wants := "projects/dummy-project-123/traces/" + traceID.String()
+	_, filename, _, _ := runtime.Caller(0)
+	t.Setenv("GOOGLE_APPLICATION_CREDENTIALS", filepath.Join(filepath.Dir(filename), "test", "credentials.json"))
+	t.Setenv("GOOGLE_CLOUD_PROJECT", "")
 
-		if tp != wants {
-			t.Errorf("wrong trace path: %s\ninstead of: %s", tp, wants)
-		}
+	const traceID = "0123456789abcdef0123456789abcdef"
+
+	ctx := ctxWithTrace(t, traceID)
+
+	got := ngtel.GetGCPTracePath(ctx)
+	want := "projects/dummy-project-123/traces/" + traceID
+
+	if got != want {
+		t.Errorf(`got "%v" wanted "%v"`, got, want)
+	}
+}
+
+func TestGetGCPTracePath_InvalidTraceID(t *testing.T) { //nolint:paralleltest
+	ngtel.SetProjectID("testing-project")
+
+	ctx := ctxWithTrace(t, "invalid-trace-id")
+
+	if got := ngtel.GetGCPTracePath(ctx); got != "" {
+		t.Errorf(`got "%v" wanted empty string`, got)
+	}
+}
+
+func TestGetGCPTracePath_NoProjectID(t *testing.T) { //nolint:paralleltest
+	ngtel.SetProjectID("")
+
+	ctx := ctxWithTrace(t, "0123456789abcdef0123456789abcdef")
+
+	if got := ngtel.GetGCPTracePath(ctx); got != "" {
+		t.Errorf(`got "%v" wanted empty string`, got)
+	}
+}
+
+func ctxWithTrace(t *testing.T, traceHex string) context.Context {
+	t.Helper()
+
+	traceID, _ := trace.TraceIDFromHex(traceHex)
+	spanID, _ := trace.SpanIDFromHex("0123456789abcdef")
+	sc := trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: traceID,
+		SpanID:  spanID,
 	})
+
+	return trace.ContextWithSpanContext(t.Context(), sc)
 }

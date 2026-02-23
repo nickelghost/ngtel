@@ -3,46 +3,62 @@ package ngtel
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2/google"
 )
 
+var (
+	projectID     atomic.Pointer[string]
+	projectIDOnce sync.Once
+)
+
+// SetProjectID sets the Google Cloud project ID to be used for trace paths.
+// Ideally, this should be called synchronously during initialization before any trace paths are generated.
+func SetProjectID(id string) {
+	projectID.Store(&id)
+}
+
 // GetGCPTracePath gives us the path identifier of our current trace, enabling us to connect it in logs for example.
 // It returns an empty string if the trace ID isn't valid or Google Cloud project ID could not be found.
 func GetGCPTracePath(ctx context.Context) string {
 	sc := trace.SpanContextFromContext(ctx)
-	projectID := os.Getenv("GOOGLE_CLOUD_PROJECT")
-
-	if projectID == "" {
-		creds, _ := google.FindDefaultCredentials(ctx)
-		projectID = creds.ProjectID
-	}
-
-	if projectID == "" || !sc.TraceID().IsValid() {
+	if !sc.TraceID().IsValid() {
 		return ""
 	}
 
-	tracePath := fmt.Sprintf("projects/%s/traces/%s", projectID, sc.TraceID())
+	pID := projectID.Load()
 
-	return tracePath
-}
+	if pID == nil || *pID == "" {
+		projectIDOnce.Do(func() {
+			if val := projectID.Load(); val != nil && *val != "" {
+				return
+			}
 
-func getTracesSampler() sdktrace.Sampler {
-	samplerName := os.Getenv("OTEL_TRACES_SAMPLER")
-	ratio := 1.0
+			creds, err := google.FindDefaultCredentials(ctx)
+			if err != nil {
+				return
+			}
 
-	if arg := os.Getenv("OTEL_TRACES_SAMPLER_ARG"); arg != "" {
-		if r, err := strconv.ParseFloat(arg, 64); err == nil {
-			ratio = r
-		}
+			projectID.Store(&creds.ProjectID)
+		})
+
+		pID = projectID.Load()
 	}
 
-	switch strings.ToLower(samplerName) {
+	if pID == nil || *pID == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("projects/%s/traces/%s", *pID, sc.TraceID())
+}
+
+func getTracesSampler(name string, ratio float64) sdktrace.Sampler {
+	switch strings.ToLower(name) {
 	case "always_on":
 		return sdktrace.AlwaysSample()
 	case "always_off":

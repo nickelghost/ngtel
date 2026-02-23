@@ -17,7 +17,7 @@ var ErrAutoexporterCreationFailed = errors.New("autoexporter creation failed")
 // ConfigureOtel configures tracer in automatic mode.
 // The shutdown function should be called when the application is shutting down to ensure all traces are sent.
 // Configures the batcher and autoprop itself.
-func ConfigureOtel(ctx context.Context) (func(), error) {
+func ConfigureOtel(ctx context.Context, samplerName string, samplerRatio float64) (func(), error) {
 	otel.SetTextMapPropagator(autoprop.NewTextMapPropagator())
 
 	texporter, err := autoexport.NewSpanExporter(ctx)
@@ -27,7 +27,7 @@ func ConfigureOtel(ctx context.Context) (func(), error) {
 
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(texporter),
-		sdktrace.WithSampler(getTracesSampler()),
+		sdktrace.WithSampler(getTracesSampler(samplerName, samplerRatio)),
 	)
 
 	otel.SetTracerProvider(tp)
