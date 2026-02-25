@@ -66,7 +66,9 @@ func TestGetGCPTracePath_CredentialsDetection(t *testing.T) {
 func TestGetGCPTracePath_InvalidTraceID(t *testing.T) { //nolint:paralleltest
 	ngtel.SetProjectID("testing-project")
 
-	ctx := ctxWithTrace(t, "invalid-trace-id")
+	// Use a plain context with no active span; IsValid() returns false for the
+	// zero TraceID, so GetGCPTracePath should return an empty string.
+	ctx := t.Context()
 
 	if got := ngtel.GetGCPTracePath(ctx); got != "" {
 		t.Errorf(`got "%v" wanted empty string`, got)
@@ -86,8 +88,16 @@ func TestGetGCPTracePath_NoProjectID(t *testing.T) { //nolint:paralleltest
 func ctxWithTrace(t *testing.T, traceHex string) context.Context {
 	t.Helper()
 
-	traceID, _ := trace.TraceIDFromHex(traceHex)
-	spanID, _ := trace.SpanIDFromHex("0123456789abcdef")
+	traceID, err := trace.TraceIDFromHex(traceHex)
+	if err != nil {
+		t.Fatalf("invalid trace ID hex %q: %v", traceHex, err)
+	}
+
+	spanID, err := trace.SpanIDFromHex("0123456789abcdef")
+	if err != nil {
+		t.Fatalf("invalid span ID hex: %v", err)
+	}
+
 	sc := trace.NewSpanContext(trace.SpanContextConfig{
 		TraceID: traceID,
 		SpanID:  spanID,
