@@ -21,6 +21,9 @@ var (
 // Ideally, this should be called synchronously during initialization before any trace paths are generated.
 func SetProjectID(id string) {
 	projectID.Store(&id)
+
+	// Reset the once to allow re-detection of credentials if needed
+	projectIDOnce = sync.Once{}
 }
 
 // GetGCPTracePath gives us the path identifier of our current trace, enabling us to connect it in logs for example.
