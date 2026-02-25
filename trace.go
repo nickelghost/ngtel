@@ -19,12 +19,9 @@ var (
 )
 
 // SetProjectID sets the Google Cloud project ID to be used for trace paths.
-// Ideally, this should be called synchronously during initialization before any trace paths are generated.
+// This must be called synchronously during initialization, before GetGCPTracePath is ever invoked.
 func SetProjectID(id string) {
 	projectID.Store(&id)
-
-	// Reset the once to allow re-detection of credentials if needed
-	projectIDOnce = sync.Once{}
 }
 
 // GetGCPTracePath gives us the path identifier of our current trace, enabling us to connect it in logs for example.
@@ -42,11 +39,6 @@ func GetGCPTracePath(ctx context.Context) string {
 
 	if pID == nil || *pID == "" {
 		projectIDOnce.Do(func() {
-			// Check if the project ID was set before once could run, to avoid unnecessary lookups.
-			if val := projectID.Load(); val != nil && *val != "" {
-				return
-			}
-
 			creds, err := google.FindDefaultCredentials(ctx)
 			if err != nil {
 				slog.Warn("ngtel: could not detect GCP project ID", "err", err)
