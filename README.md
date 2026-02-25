@@ -22,7 +22,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-defer shutdown()
+defer shutdown(context.Background())
 ```
 
 ### GCP trace correlation in logs
