@@ -3,6 +3,7 @@ package ngtel
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -30,6 +31,9 @@ func SetProjectID(id string) {
 // It returns an empty string if the trace ID isn't valid or Google Cloud project ID could not be found.
 func GetGCPTracePath(ctx context.Context) string {
 	sc := trace.SpanContextFromContext(ctx)
+	// IsValid() checks for a non-zero TraceID. trace.TraceID is a [16]byte, so
+	// its String() output is always a well-formed 32-char hex string — no
+	// additional hex validation is required beyond this zero check.
 	if !sc.TraceID().IsValid() {
 		return ""
 	}
@@ -38,6 +42,7 @@ func GetGCPTracePath(ctx context.Context) string {
 
 	if pID == nil || *pID == "" {
 		projectIDOnce.Do(func() {
+			// Check if the project ID was set before once could run, to avoid unnecessary lookups.
 			if val := projectID.Load(); val != nil && *val != "" {
 				return
 			}
