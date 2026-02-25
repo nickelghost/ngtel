@@ -44,6 +44,8 @@ func GetGCPTracePath(ctx context.Context) string {
 
 			creds, err := google.FindDefaultCredentials(ctx)
 			if err != nil {
+				slog.Warn("ngtel: could not detect GCP project ID", "err", err)
+
 				return
 			}
 
