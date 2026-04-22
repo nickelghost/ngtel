@@ -16,8 +16,10 @@ Call `ConfigureOtel` early in your application startup. It configures the tracer
 
 The `samplerName` parameter accepts the same values as the `OTEL_TRACES_SAMPLER` env var (`always_on`, `always_off`, `traceidratio`, `parentbased_always_off`, `parentbased_traceidratio`). Any other value falls back to `parentbased_always_on`.
 
+Pass `nil` for `creds` to use the autoexport exporter. When non-nil, the exporter uses gRPC with the provided per-RPC credentials instead.
+
 ```go
-shutdown, err := ngtel.ConfigureOtel(ctx, "parentbased_always_on", 0)
+shutdown, err := ngtel.ConfigureOtel(ctx, "parentbased_always_on", 1.0, nil)
 if err != nil {
     log.Fatal(err)
 }
